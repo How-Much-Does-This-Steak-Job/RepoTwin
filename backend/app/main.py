@@ -3,13 +3,15 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 
 from app.api.router import api_router
 from app.config import settings
 from app.models.database import init_db
+from app.utils.errors import AnalysisError, AnalysisNotFoundError, AnalysisTimeoutError, AnalysisValidationError
 
 # Configure logging
 logging.basicConfig(
@@ -54,6 +56,68 @@ app.add_middleware(
 )
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+
+# Exception handlers
+@app.exception_handler(AnalysisNotFoundError)
+async def analysis_not_found_handler(request: Request, exc: AnalysisNotFoundError):
+    """Handle AnalysisNotFoundError exceptions."""
+    return JSONResponse(
+        status_code=404,
+        content={
+            "error": {
+                "code": "ANALYSIS_NOT_FOUND",
+                "message": exc.message,
+                "details": exc.details,
+            }
+        },
+    )
+
+
+@app.exception_handler(AnalysisValidationError)
+async def analysis_validation_handler(request: Request, exc: AnalysisValidationError):
+    """Handle AnalysisValidationError exceptions."""
+    return JSONResponse(
+        status_code=400,
+        content={
+            "error": {
+                "code": "ANALYSIS_VALIDATION_ERROR",
+                "message": exc.message,
+                "details": exc.details,
+            }
+        },
+    )
+
+
+@app.exception_handler(AnalysisTimeoutError)
+async def analysis_timeout_handler(request: Request, exc: AnalysisTimeoutError):
+    """Handle AnalysisTimeoutError exceptions."""
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": {
+                "code": "ANALYSIS_TIMEOUT",
+                "message": exc.message,
+                "details": exc.details,
+            }
+        },
+    )
+
+
+@app.exception_handler(AnalysisError)
+async def analysis_error_handler(request: Request, exc: AnalysisError):
+    """Handle generic AnalysisError exceptions."""
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": {
+                "code": "ANALYSIS_ERROR",
+                "message": exc.message,
+                "details": exc.details,
+            }
+        },
+    )
+
 
 # Include API router
 app.include_router(api_router, prefix="/api")
