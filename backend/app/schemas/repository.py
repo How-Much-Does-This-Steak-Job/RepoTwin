@@ -16,7 +16,8 @@ class RepositoryBase(BaseModel):
 
 class RepositoryCreate(RepositoryBase):
     """Repository creation schema."""
-    pass
+    local_path: Optional[str] = Field(None, description="Optional local path to existing repository (skips clone)")
+    branch: Optional[str] = Field("main", description="Default branch to clone")
 
 
 class RepositoryUpdate(BaseModel):
