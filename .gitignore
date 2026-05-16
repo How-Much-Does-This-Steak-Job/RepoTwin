@@ -1,0 +1,170 @@
+# =========================
+# Dependencies / package managers
+# =========================
+node_modules/
+.pnpm-store/
+.pnp/
+.pnp.js
+
+# This project uses pnpm only
+package-lock.json
+yarn.lock
+
+# =========================
+# Build outputs
+# =========================
+.next/
+out/
+dist/
+build/
+.vercel/output/
+.turbo/
+coverage/
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# Environment variables / secrets
+# =========================
+.env
+.env.*
+!.env.example
+
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.cert
+*.keystore
+
+# API keys or credential dumps
+*credentials*
+*secrets*
+*apikey*
+*api-key*
+*token*
+*password*
+*.secret.*
+*.secrets.*
+
+# =========================
+# OS / editor files
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+.idea/
+*.swp
+*.swo
+
+# =========================
+# Cache directories
+# =========================
+.cache/
+.cache-loader/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+
+# Python / backend cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# =========================
+# Redis / local database files
+# =========================
+dump.rdb
+appendonly.aof
+*.sqlite
+*.sqlite3
+*.db
+redis-data/
+data/redis/
+backend/redis-data/
+
+# =========================
+# Temporary files
+# =========================
+tmp/
+temp/
+.tmp/
+*.tmp
+*.bak
+*.backup
+
+# =========================
+# Private documentation / sensitive markdown
+# =========================
+
+# Keep normal docs, README and AGENTS.
+# Ignore only private, raw, or secret-related markdown files.
+docs/private/
+docs/**/private/
+docs/**/drafts/
+docs/**/raw/
+docs/**/*secret*.md
+docs/**/*secrets*.md
+docs/**/*credential*.md
+docs/**/*credentials*.md
+docs/**/*token*.md
+docs/**/*password*.md
+docs/**/*apikey*.md
+docs/**/*api-key*.md
+docs/**/*private*.md
+
+# Ignore sensitive root markdown files, but keep important project docs.
+*.secret.md
+*.secrets.md
+*.credentials.md
+*.credential.md
+*.token.md
+*.password.md
+*.private.md
+
+# =========================
+# IBM Bob / AI assistant local files
+# =========================
+
+# Keep .bob/skills because they are part of the project.
+# Ignore local Bob/assistant cache or raw session material.
+.bob/cache/
+.bob/tmp/
+.bob/temp/
+.bob/history/
+.bob/sessions/
+.bob/**/*.log
+
+# Keep bob_sessions for final judging evidence,
+# but ignore raw/private exports. Commit only reviewed/sanitized reports.
+bob_sessions/raw/
+bob_sessions/private/
+bob_sessions/**/*secret*
+bob_sessions/**/*credential*
+bob_sessions/**/*token*
+bob_sessions/**/*password*
+bob_sessions/**/*apikey*
+bob_sessions/**/*api-key*
+
+# =========================
+# Deployment / platform local state
+# =========================
+.vercel/
+.netlify/
