@@ -10,6 +10,11 @@ import {
   AnalysisResults,
   AnalysisStatus,
   HealthResponse,
+  Repository,
+  RepositoryCreateRequest,
+  RepositoryFile,
+  RepositoryFilesList,
+  RepositoryList,
 } from "@/types/api";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
@@ -102,30 +107,10 @@ export async function createAnalysis(
     };
   }
 
-  try {
-    return await fetchWithErrorHandling<Analysis>(`${API_BASE_URL}/analysis`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  } catch (error) {
-    console.warn("Backend unavailable, falling back to mock mode");
-    // Fallback to mock
-    const mockId = `mock-${Date.now()}`;
-    return {
-      id: mockId,
-      repo_id: data.repo_id,
-      change_description: data.change_description,
-      target_branch: data.target_branch || "main",
-      status: AnalysisStatus.PENDING,
-      progress_percent: 0,
-      current_step: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      started_at: null,
-      completed_at: null,
-      error_message: null,
-    };
-  }
+  return await fetchWithErrorHandling<Analysis>(`${API_BASE_URL}/analysis`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }
 
 /**
@@ -174,22 +159,9 @@ export async function getAnalysisProgress(
     };
   }
 
-  try {
-    return await fetchWithErrorHandling<AnalysisProgress>(
-      `${API_BASE_URL}/analysis/${analysisId}/progress`
-    );
-  } catch (error) {
-    console.warn("Failed to get progress, falling back to mock");
-    // Fallback to completed status
-    return {
-      analysis_id: analysisId,
-      status: "completed",
-      progress_percent: 100,
-      current_step: "Shadow PR ready",
-      message: "Analysis completed (fallback mode)",
-      estimated_time_remaining: 0,
-    };
-  }
+  return await fetchWithErrorHandling<AnalysisProgress>(
+    `${API_BASE_URL}/analysis/${analysisId}/progress`
+  );
 }
 
 /**
@@ -203,15 +175,9 @@ export async function getAnalysisResults(
     return await loadSampleData();
   }
 
-  try {
-    return await fetchWithErrorHandling<AnalysisResults>(
-      `${API_BASE_URL}/analysis/${analysisId}/results`
-    );
-  } catch (error) {
-    console.warn("Failed to get results from backend, using sample data");
-    // Fallback to sample data
-    return await loadSampleData();
-  }
+  return await fetchWithErrorHandling<AnalysisResults>(
+    `${API_BASE_URL}/analysis/${analysisId}/results`
+  );
 }
 
 /**
@@ -235,27 +201,9 @@ export async function getAnalysis(analysisId: string): Promise<Analysis> {
     };
   }
 
-  try {
-    return await fetchWithErrorHandling<Analysis>(
-      `${API_BASE_URL}/analysis/${analysisId}`
-    );
-  } catch (error) {
-    console.warn("Failed to get analysis, using mock data");
-    return {
-      id: analysisId,
-      repo_id: "660e8400-e29b-41d4-a716-446655440000",
-      change_description: "Add reservation flow before purchase",
-      target_branch: "main",
-      status: AnalysisStatus.COMPLETED,
-      progress_percent: 100,
-      current_step: "Completed",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      started_at: new Date().toISOString(),
-      completed_at: new Date().toISOString(),
-      error_message: null,
-    };
-  }
+  return await fetchWithErrorHandling<Analysis>(
+    `${API_BASE_URL}/analysis/${analysisId}`
+  );
 }
 
 /**
@@ -275,3 +223,150 @@ export async function isBackendAvailable(): Promise<boolean> {
 }
 
 // Made with Bob
+
+
+/**
+ * Repository Management Functions
+ */
+
+type BackendRepository = Repository & {
+  url?: string;
+  status?: string;
+  total_files?: number;
+};
+
+type BackendRepositoryFile = RepositoryFile & {
+  name?: string;
+};
+
+type BackendRepositoryFiles = {
+  path?: string;
+  files?: BackendRepositoryFile[];
+  directories?: string[];
+};
+
+function normalizeRepository(repo: BackendRepository): Repository {
+  return {
+    ...repo,
+    github_url: repo.github_url ?? repo.url ?? "",
+    is_synced: repo.is_synced ?? repo.status === "ready",
+    file_count: repo.file_count ?? repo.total_files ?? 0,
+  };
+}
+
+function normalizeRepositoryList(data: RepositoryList | BackendRepository[]): RepositoryList {
+  const items = Array.isArray(data) ? data : data.items ?? [];
+
+  return {
+    items: items.map(normalizeRepository),
+    total: Array.isArray(data) ? items.length : data.total ?? items.length,
+  };
+}
+
+/**
+ * Create a new repository
+ */
+export async function createRepository(
+  data: RepositoryCreateRequest
+): Promise<Repository> {
+  const repository = await fetchWithErrorHandling<BackendRepository>(`${API_BASE_URL}/repos`, {
+    method: "POST",
+    body: JSON.stringify({
+      name: data.name,
+      description: data.description,
+      url: data.github_url,
+      branch: data.default_branch ?? "main",
+    }),
+  });
+
+  return normalizeRepository(repository);
+}
+
+/**
+ * Get all repositories
+ */
+export async function getRepositories(): Promise<RepositoryList> {
+  const repositories = await fetchWithErrorHandling<RepositoryList | BackendRepository[]>(
+    `${API_BASE_URL}/repos`
+  );
+
+  return normalizeRepositoryList(repositories);
+}
+
+/**
+ * Get a single repository by ID
+ */
+export async function getRepository(repoId: string): Promise<Repository> {
+  const repository = await fetchWithErrorHandling<BackendRepository>(
+    `${API_BASE_URL}/repos/${repoId}`
+  );
+
+  return normalizeRepository(repository);
+}
+
+/**
+ * Sync repository files
+ */
+export async function syncRepository(
+  repoId: string
+): Promise<Repository> {
+  const repository = await fetchWithErrorHandling<BackendRepository>(
+    `${API_BASE_URL}/repos/${repoId}/sync`,
+    {
+      method: "POST",
+    }
+  );
+
+  return normalizeRepository(repository);
+}
+
+/**
+ * Get repository files
+ */
+export async function getRepositoryFiles(
+  repoId: string
+): Promise<RepositoryFilesList> {
+  const data = await fetchWithErrorHandling<RepositoryFilesList | BackendRepositoryFiles>(
+    `${API_BASE_URL}/repos/${repoId}/files`
+  );
+
+  if ("total_count" in data) {
+    return data;
+  }
+
+  const files = data.files ?? [];
+  const directories = (data.directories ?? []).map((path) => ({
+    path,
+    type: "directory" as const,
+  }));
+
+  return {
+    repo_id: repoId,
+    files: [...directories, ...files],
+    total_count: directories.length + files.length,
+  };
+}
+
+/**
+ * LocalStorage helpers for selected repository
+ */
+const SELECTED_REPO_KEY = "repotwin_selected_repo_id";
+
+export function setSelectedRepoId(repoId: string): void {
+  if (typeof window !== "undefined") {
+    localStorage.setItem(SELECTED_REPO_KEY, repoId);
+  }
+}
+
+export function getSelectedRepoId(): string | null {
+  if (typeof window !== "undefined") {
+    return localStorage.getItem(SELECTED_REPO_KEY);
+  }
+  return null;
+}
+
+export function clearSelectedRepoId(): void {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(SELECTED_REPO_KEY);
+  }
+}

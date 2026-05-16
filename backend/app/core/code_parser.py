@@ -62,6 +62,10 @@ class CodeParser:
             '.ts': 'typescript',
             '.tsx': 'typescript',
             '.java': 'java',
+            '.kt': 'kotlin',
+            '.kts': 'kotlin',
+            '.xml': 'xml',
+            '.gradle': 'gradle',
             '.go': 'go',
             '.rs': 'rust',
             '.c': 'c',
@@ -188,16 +192,45 @@ class CodeParser:
                 module = match.group(1) or match.group(2)
                 if module:
                     result.imports.append(ImportInfo(module=module))
+        elif language in ['kotlin', 'java']:
+            import_pattern = r'^\s*import\s+([\w.*]+)'
+            for match in re.finditer(import_pattern, content, re.MULTILINE):
+                result.imports.append(ImportInfo(module=match.group(1)))
+        elif language in ['javascript', 'typescript']:
+            import_pattern = r'^\s*import\s+.*?\s+from\s+[\'"]([^\'"]+)[\'"]|^\s*import\s+[\'"]([^\'"]+)[\'"]'
+            for match in re.finditer(import_pattern, content, re.MULTILINE):
+                module = match.group(1) or match.group(2)
+                if module:
+                    result.imports.append(ImportInfo(module=module))
         
         # Extract function definitions (basic)
-        func_pattern = r'^(?:def|function|func)\s+(\w+)'
-        for i, match in enumerate(re.finditer(func_pattern, content, re.MULTILINE)):
+        func_patterns = [
+            r'^\s*(?:def|function|func)\s+(\w+)',
+            r'^\s*(?:public|private|protected|internal|override|suspend|static|\s)*\s*fun\s+(\w+)',
+            r'^\s*(?:public|private|protected|static|final|abstract|synchronized|\s)*[\w<>\[\], ?]+\s+(\w+)\s*\([^;{}]*\)\s*\{',
+        ]
+        seen_functions = set()
+        for func_pattern in func_patterns:
+            for match in re.finditer(func_pattern, content, re.MULTILINE):
+                name = match.group(1)
+                if name in seen_functions or name in {'if', 'for', 'while', 'switch', 'catch'}:
+                    continue
+                seen_functions.add(name)
+                line_num = content[:match.start()].count('\n') + 1
+                result.functions.append(FunctionInfo(
+                    name=name,
+                    line_start=line_num,
+                    line_end=line_num + 10,
+                    signature=match.group(0).strip(),
+                ))
+
+        class_pattern = r'^\s*(?:data\s+|sealed\s+|enum\s+)?(?:class|interface|object)\s+(\w+)'
+        for match in re.finditer(class_pattern, content, re.MULTILINE):
             line_num = content[:match.start()].count('\n') + 1
-            result.functions.append(FunctionInfo(
+            result.classes.append(ClassInfo(
                 name=match.group(1),
                 line_start=line_num,
-                line_end=line_num + 10,
-                signature=match.group(0),
+                line_end=line_num + 30,
             ))
         
         return result

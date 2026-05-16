@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createAnalysis } from "@/lib/api";
+import Link from "next/link";
+import { createAnalysis, getSelectedRepoId, getRepository } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Repository } from "@/types/api";
 
 export default function DemoPage() {
   const router = useRouter();
@@ -16,10 +18,41 @@ export default function DemoPage() {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
+  const [isLoadingRepo, setIsLoadingRepo] = useState(true);
+
+  useEffect(() => {
+    const loadSelectedRepo = async () => {
+      setIsLoadingRepo(true);
+      const repoId = getSelectedRepoId();
+      
+      if (!repoId) {
+        setIsLoadingRepo(false);
+        return;
+      }
+
+      try {
+        const repo = await getRepository(repoId);
+        setSelectedRepo(repo);
+      } catch (err) {
+        console.error("Failed to load selected repository:", err);
+        setSelectedRepo(null);
+      } finally {
+        setIsLoadingRepo(false);
+      }
+    };
+
+    loadSelectedRepo();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!selectedRepo) {
+      setError("Please select a repository first");
+      return;
+    }
 
     if (changeRequest.trim().length < 10) {
       setError("Change request must be at least 10 characters long");
@@ -29,11 +62,11 @@ export default function DemoPage() {
     setIsSubmitting(true);
 
     try {
-      // Create analysis with UniMarket demo repo
+      // Create analysis with selected repo
       const analysis = await createAnalysis({
-        repo_id: "660e8400-e29b-41d4-a716-446655440000",
+        repo_id: selectedRepo.id,
         change_description: changeRequest.trim(),
-        target_branch: "main",
+        target_branch: selectedRepo.default_branch,
       });
 
       // Redirect to analyzing page
@@ -48,6 +81,75 @@ export default function DemoPage() {
       setIsSubmitting(false);
     }
   };
+
+  // Show loading state
+  if (isLoadingRepo) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950">
+        <div className="container mx-auto px-4 py-16">
+          <div className="max-w-3xl mx-auto text-center">
+            <Loader2 className="h-12 w-12 animate-spin text-blue-500 mx-auto mb-4" />
+            <p className="text-slate-300">Loading repository...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show CTA if no repo is selected
+  if (!selectedRepo) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950">
+        <div className="container mx-auto px-4 py-16">
+          <div className="max-w-3xl mx-auto">
+            <Card className="bg-slate-900/50 border-slate-700 backdrop-blur">
+              <CardContent className="pt-12 pb-12">
+                <div className="text-center">
+                  <AlertCircle className="mx-auto h-16 w-16 text-yellow-500 mb-6" />
+                  <h2 className="text-3xl font-bold text-white mb-4">
+                    No Repository Selected
+                  </h2>
+                  <p className="text-lg text-slate-300 mb-8">
+                    Please connect and select a repository before analyzing code changes.
+                  </p>
+                  <Link href="/repos">
+                    <Button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-6 px-8 text-lg">
+                      Connect Repository
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Info */}
+            <div className="mt-8 bg-slate-900/50 border border-slate-700 rounded-lg p-6 backdrop-blur">
+              <h3 className="text-lg font-semibold text-white mb-3">
+                Getting Started
+              </h3>
+              <ol className="space-y-2 text-slate-300">
+                <li className="flex gap-2">
+                  <span className="font-semibold text-blue-400">1.</span>
+                  <span>Go to the Repository Management page</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-semibold text-blue-400">2.</span>
+                  <span>Connect a GitHub repository</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-semibold text-blue-400">3.</span>
+                  <span>Select the repository for analysis</span>
+                </li>
+                <li className="flex gap-2">
+                  <span className="font-semibold text-blue-400">4.</span>
+                  <span>Return here to analyze code changes</span>
+                </li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950">
@@ -71,7 +173,7 @@ export default function DemoPage() {
               </CardTitle>
               <CardDescription className="text-slate-400">
                 Enter a natural language description of your proposed code change.
-                We'll analyze its impact across the UniMarket repository.
+                We'll analyze its impact across the {selectedRepo.name} repository.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -84,14 +186,23 @@ export default function DemoPage() {
                         Repository
                       </p>
                       <p className="text-lg font-semibold text-white">
-                        UniMarket
+                        {selectedRepo.name}
                       </p>
                     </div>
                     <div>
                       <p className="text-sm font-medium text-slate-300">
                         Branch
                       </p>
-                      <p className="text-lg font-semibold text-white">main</p>
+                      <p className="text-lg font-semibold text-white">
+                        {selectedRepo.default_branch}
+                      </p>
+                    </div>
+                    <div>
+                      <Link href="/repos">
+                        <Button className="bg-slate-700 hover:bg-slate-600 text-white text-sm">
+                          Change Repo
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                 </div>
@@ -104,7 +215,7 @@ export default function DemoPage() {
                   <Textarea
                     id="changeRequest"
                     value={changeRequest}
-                    onChange={(e) => setChangeRequest(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setChangeRequest(e.target.value)}
                     placeholder="Describe the change you want to make..."
                     className="min-h-[150px] bg-slate-800 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500"
                     disabled={isSubmitting}

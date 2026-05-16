@@ -37,15 +37,16 @@ function AnalyzingContent() {
           }, 1000);
         } else if (progressData.status === "failed") {
           clearInterval(pollInterval);
-          setError("Analysis failed. Please try again.");
+          setError(progressData.message || "Analysis failed. Please try again.");
         }
       } catch (err) {
         console.error("Failed to get progress:", err);
-        // On error, assume completed and redirect to results with fallback
         clearInterval(pollInterval);
-        setTimeout(() => {
-          router.push(`/demo/results?analysisId=${analysisId}`);
-        }, 1000);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Failed to get analysis progress"
+        );
       }
     };
 

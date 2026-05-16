@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import random
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -492,13 +493,15 @@ class AnalysisService:
             repo_data = await repo_service.get_repository(analysis.repo_id)
         
         if not repo_data:
-            logger.warning(f"Repository {analysis.repo_id} not found, using fallback analysis")
-            return await self._generate_fallback_analysis(analysis)
+            raise ValueError(
+                f"Repository {analysis.repo_id} was not found. Connect or select a valid repository before running analysis."
+            )
         
         local_path = repo_data.get('local_path')
         if not local_path or not Path(local_path).exists():
-            logger.warning(f"Repository path not found for {analysis.repo_id}")
-            return await self._generate_fallback_analysis(analysis)
+            raise ValueError(
+                f"Repository files are not available locally for {analysis.repo_id}. Reconnect the repository so it can be cloned before analysis."
+            )
         
         # Stage 2: Parse code structure (25%)
         await self._update_progress(analysis_id, 25, "Parsing code structure with Tree-sitter...")
@@ -508,8 +511,9 @@ class AnalysisService:
         total_files = len(parse_results)
         
         if total_files == 0:
-            logger.warning(f"No parseable files found in {local_path}")
-            return await self._generate_fallback_analysis(analysis)
+            raise ValueError(
+                f"No parseable source files were found in {local_path}. The repository may be empty or unsupported."
+            )
         
         # Calculate metrics from parsed files
         total_lines = sum(r.total_lines for r in parse_results)
@@ -1037,7 +1041,11 @@ class AnalysisService:
             ],
         ))
         
-        total_days = sum(float(p.estimated_effort.split()[0]) for p in phases if 'day' in p.estimated_effort)
+        total_days = sum(
+            self._parse_estimated_effort_days(p.estimated_effort)
+            for p in phases
+            if 'day' in p.estimated_effort
+        )
         
         return ImplementationPlan(
             phases=phases,
@@ -1099,6 +1107,32 @@ class AnalysisService:
             new_tests_needed=new_tests_needed[:5],
             coverage_gaps=coverage_gaps,
         )
+
+    def _parse_estimated_effort_days(self, estimated_effort: str) -> float:
+        """Parse effort strings like '2 days', '1-2 days', or '< 1 day'."""
+        effort = estimated_effort.strip().lower()
+
+        if not effort:
+            return 0.0
+
+        if effort.startswith("<"):
+            numbers = re.findall(r"\d+(?:\.\d+)?", effort)
+            if numbers:
+                return max(float(numbers[0]) * 0.5, 0.5)
+            return 0.5
+
+        range_match = re.search(r"(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)", effort)
+        if range_match:
+            low = float(range_match.group(1))
+            high = float(range_match.group(2))
+            return (low + high) / 2
+
+        number_match = re.search(r"\d+(?:\.\d+)?", effort)
+        if number_match:
+            return float(number_match.group(0))
+
+        return 0.0
+
     async def _enhance_with_watsonx(
         self,
         analysis_id: UUID,
