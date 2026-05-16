@@ -174,6 +174,8 @@ export interface AnalysisResults {
   regression_analysis: RegressionAnalysis;
   implementation_plan: ImplementationPlan;
   test_recommendations: TestRecommendations;
+  provider: "watsonx" | "heuristic" | "sample";
+  enhanced_by_llm: boolean;
 }
 
 export interface AnalysisList {

@@ -182,7 +182,9 @@ class DemoService:
                 "existing_tests_to_update": [],
                 "new_tests_needed": [],
                 "coverage_gaps": []
-            })
+            }),
+            provider="sample",
+            enhanced_by_llm=False,
         )
     
     async def simulate_progress(

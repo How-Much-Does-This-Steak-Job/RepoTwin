@@ -39,6 +39,8 @@ from app.services.demo_service import demo_service
 from app.services.repo_service import repo_service
 from app.core.code_parser import code_parser
 from app.core.impact_engine import impact_engine
+from app.core.ibm_bob import ibm_bob_client
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -537,7 +539,7 @@ class AnalysisService:
         await self._update_progress(analysis_id, 85, "Generating implementation plan and risk assessment...")
         await asyncio.sleep(2.0)
         
-        # Build AnalysisResults from actual data
+        # Build AnalysisResults from actual data (heuristic analysis)
         results = self._build_analysis_results(
             analysis=analysis,
             repo_data=repo_data,
@@ -548,6 +550,15 @@ class AnalysisService:
             total_lines=total_lines,
             total_functions=total_functions,
             total_classes=total_classes,
+        )
+        
+        # Stage 6: Optional watsonx.ai enhancement (95%)
+        results = await self._enhance_with_watsonx(
+            analysis_id=analysis_id,
+            analysis=analysis,
+            heuristic_results=results,
+            repo_data=repo_data,
+            parse_results=parse_results,
         )
         
         logger.info(f"Live analysis completed for {analysis_id}: {total_files} files analyzed")
@@ -708,6 +719,8 @@ class AnalysisService:
             regression_analysis=regression_analysis,
             implementation_plan=implementation_plan,
             test_recommendations=test_recommendations,
+            provider="heuristic",
+            enhanced_by_llm=False,
         )
     
     def _generate_affected_files(
@@ -1086,6 +1099,217 @@ class AnalysisService:
             new_tests_needed=new_tests_needed[:5],
             coverage_gaps=coverage_gaps,
         )
+    async def _enhance_with_watsonx(
+        self,
+        analysis_id: UUID,
+        analysis: Analysis,
+        heuristic_results: AnalysisResults,
+        repo_data: dict,
+        parse_results: list,
+    ) -> AnalysisResults:
+        """Enhance heuristic analysis with watsonx.ai LLM insights.
+        
+        This method attempts to use IBM watsonx.ai to enhance the heuristic analysis
+        with AI-generated insights. If watsonx credentials are not configured or the
+        API call fails, it returns the original heuristic results unchanged.
+        
+        Args:
+            analysis_id: Analysis UUID for progress tracking
+            analysis: Analysis object with change description
+            heuristic_results: Results from heuristic analysis
+            repo_data: Repository metadata
+            parse_results: Parsed code structure
+            
+        Returns:
+            Enhanced AnalysisResults if watsonx succeeds, otherwise original results
+        """
+        # Check if watsonx credentials are configured
+        if not settings.watsonx_api_key or not settings.watsonx_api_key.strip():
+            logger.info("watsonx.ai credentials not configured - using heuristic analysis only")
+            heuristic_results.provider = "heuristic"
+            heuristic_results.enhanced_by_llm = False
+            return heuristic_results
+        
+        try:
+            await self._update_progress(analysis_id, 95, "Enhancing analysis with IBM watsonx.ai...")
+            await asyncio.sleep(1.0)
+            
+            # Build repository context for watsonx
+            repo_context = self._build_repository_context(repo_data, parse_results)
+            
+            # Build affected code context (top affected files)
+            affected_code = self._build_affected_code_context(heuristic_results, parse_results)
+            
+            # Call watsonx.ai for enhanced analysis
+            logger.info(f"Calling watsonx.ai for analysis {analysis_id}")
+            watsonx_results = await ibm_bob_client.analyze_impact(
+                repository_context=repo_context,
+                change_description=analysis.change_description,
+                affected_code=affected_code,
+            )
+            
+            # Merge watsonx insights with heuristic results
+            enhanced_results = self._merge_watsonx_insights(heuristic_results, watsonx_results)
+            enhanced_results.provider = "watsonx"
+            enhanced_results.enhanced_by_llm = True
+            
+            logger.info(f"Successfully enhanced analysis {analysis_id} with watsonx.ai")
+            return enhanced_results
+            
+        except Exception as e:
+            logger.warning(f"watsonx.ai enhancement failed for {analysis_id}: {e}")
+            logger.info("Continuing with heuristic analysis results")
+            heuristic_results.provider = "heuristic"
+            heuristic_results.enhanced_by_llm = False
+            return heuristic_results
+    
+    def _build_repository_context(self, repo_data: dict, parse_results: list) -> str:
+        """Build repository context string for watsonx prompt.
+        
+        Args:
+            repo_data: Repository metadata
+            parse_results: Parsed code structure
+            
+        Returns:
+            Formatted repository context string
+        """
+        total_files = len(parse_results)
+        total_lines = sum(r.total_lines for r in parse_results)
+        languages = self._detect_languages_from_parse(parse_results)
+        
+        context = f"""Repository: {repo_data.get('name', 'Unknown')}
+Description: {repo_data.get('description', 'N/A')}
+Total Files: {total_files}
+Total Lines: {total_lines}
+Languages: {', '.join(f"{lang} ({pct:.1f}%)" for lang, pct in languages[:3])}
+
+File Structure:
+"""
+        # Add sample of file paths
+        for i, result in enumerate(parse_results[:10]):
+            context += f"- {result.file_path}\n"
+        
+        if total_files > 10:
+            context += f"... and {total_files - 10} more files\n"
+        
+        return context
+    
+    def _build_affected_code_context(self, heuristic_results: AnalysisResults, parse_results: list) -> str:
+        """Build affected code context for watsonx prompt.
+        
+        Args:
+            heuristic_results: Heuristic analysis results
+            parse_results: Parsed code structure
+            
+        Returns:
+            Formatted affected code context
+        """
+        context = "Affected Files (from heuristic analysis):\n\n"
+        
+        # Get top 5 affected files
+        for af in heuristic_results.affected_files[:5]:
+            context += f"File: {af.path}\n"
+            context += f"Impact: {af.impact_level.value}\n"
+            context += f"Change Type: {af.change_type}\n"
+            context += f"Reasoning: {af.reasoning}\n"
+            
+            # Find parse result for this file
+            for pr in parse_results:
+                if pr.file_path == af.path:
+                    context += f"Functions: {len(pr.functions)}\n"
+                    context += f"Classes: {len(pr.classes)}\n"
+                    if pr.functions:
+                        context += f"Key Functions: {', '.join(f.name for f in pr.functions[:3])}\n"
+                    break
+            
+            context += "\n"
+        
+        return context
+    
+    def _merge_watsonx_insights(
+        self,
+        heuristic_results: AnalysisResults,
+        watsonx_results: AnalysisResults,
+    ) -> AnalysisResults:
+        """Merge watsonx AI insights with heuristic analysis.
+        
+        Strategy:
+        - Use watsonx summary and key points (AI-generated narrative)
+        - Keep heuristic affected files (based on actual code structure)
+        - Merge risk factors (combine heuristic + AI insights)
+        - Use watsonx implementation plan and test recommendations (AI-generated)
+        - Keep heuristic impact metrics (based on actual dependency graph)
+        
+        Args:
+            heuristic_results: Results from code analysis
+            watsonx_results: Results from watsonx.ai
+            
+        Returns:
+            Merged AnalysisResults
+        """
+        # Use AI-generated summary
+        merged_summary = watsonx_results.summary
+        
+        # Keep heuristic affected files (more accurate based on code structure)
+        merged_affected_files = heuristic_results.affected_files
+        
+        # Keep heuristic impact radius (based on actual dependency graph)
+        merged_impact_radius = heuristic_results.impact_radius
+        
+        # Merge risk factors: combine unique factors from both
+        heuristic_factor_names = {f.name for f in heuristic_results.risk_assessment.factors}
+        merged_risk_factors = list(heuristic_results.risk_assessment.factors)
+        
+        for watsonx_factor in watsonx_results.risk_assessment.factors:
+            if watsonx_factor.name not in heuristic_factor_names:
+                merged_risk_factors.append(watsonx_factor)
+        
+        # Use higher risk score
+        merged_risk_score = max(
+            heuristic_results.risk_assessment.score,
+            watsonx_results.risk_assessment.score,
+        )
+        
+        # Use higher risk level
+        risk_level_order = {
+            RiskLevel.LOW: 1,
+            RiskLevel.MEDIUM: 2,
+            RiskLevel.HIGH: 3,
+            RiskLevel.CRITICAL: 4,
+        }
+        merged_risk_level = max(
+            heuristic_results.risk_assessment.overall_level,
+            watsonx_results.risk_assessment.overall_level,
+            key=lambda x: risk_level_order[x],
+        )
+        
+        merged_risk_assessment = RiskAssessment(
+            overall_level=merged_risk_level,
+            score=merged_risk_score,
+            factors=merged_risk_factors[:10],  # Limit to top 10
+        )
+        
+        # Use watsonx regression analysis (AI-generated insights)
+        merged_regression = watsonx_results.regression_analysis
+        
+        # Use watsonx implementation plan (AI-generated strategy)
+        merged_implementation = watsonx_results.implementation_plan
+        
+        # Use watsonx test recommendations (AI-generated test strategy)
+        merged_tests = watsonx_results.test_recommendations
+        
+        return AnalysisResults(
+            summary=merged_summary,
+            affected_files=merged_affected_files,
+            impact_radius=merged_impact_radius,
+            risk_assessment=merged_risk_assessment,
+            regression_analysis=merged_regression,
+            implementation_plan=merged_implementation,
+            test_recommendations=merged_tests,
+            provider="watsonx",
+            enhanced_by_llm=True,
+        )
+    
     
     async def _generate_fallback_analysis(self, analysis: Analysis) -> AnalysisResults:
         """Generate fallback analysis when repository data is unavailable."""
@@ -1136,6 +1360,8 @@ class AnalysisService:
                 prerequisites=[],
             ),
             test_recommendations=TestRecommendations(),
+            provider="sample",
+            enhanced_by_llm=False,
         )
 
     async def _update_progress(
