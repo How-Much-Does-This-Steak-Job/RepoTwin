@@ -117,9 +117,21 @@ async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit
 
 
 async def init_db():
-    """Initialize database tables."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """Initialize database tables.
+    
+    Note: Database is optional for MVP. If connection fails,
+    the app will continue using Redis/memory storage.
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database initialized successfully")
+    except Exception as e:
+        logger.warning(f"Database connection failed (optional for MVP): {e}")
+        logger.info("Continuing without database - using Redis/memory storage only")
 
 
 async def get_db():
