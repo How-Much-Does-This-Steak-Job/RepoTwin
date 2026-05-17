@@ -1,32 +1,22 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "frontend/package.json",
-      "use": "@vercel/next"
+  "experimentalServices": {
+    "frontend": {
+      "entrypoint": "frontend",
+      "routePrefix": "/",
+      "framework": "nextjs"
     },
-    {
-      "src": "backend/app/main.py",
-      "use": "@vercel/python"
+    "backend": {
+      "entrypoint": "backend/app/main.py",
+      "routePrefix": "/_/backend",
+      "framework": "fastapi"
     }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "backend/app/main.py"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "frontend/$1"
-    }
-  ],
+  },
   "env": {
-    "FRONTEND_URL": "https://repotwin.vercel.app",
-    "BACKEND_URL": "https://repotwin.vercel.app/api"
+    "NEXT_PUBLIC_API_URL": "/_/backend/api"
   },
   "build": {
     "env": {
-      "NEXT_PUBLIC_API_URL": "/api"
+      "NEXT_PUBLIC_API_URL": "/_/backend/api"
     }
   }
 }

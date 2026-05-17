@@ -19,7 +19,10 @@ import {
 } from "@/types/api";
 import { ShadowPRPreview, ShadowPRDownloadPackage } from "@/types/shadow-pr";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const BACKEND_SERVICE_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (BACKEND_SERVICE_URL ? `${BACKEND_SERVICE_URL}/api` : "http://localhost:8000/api");
 const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK === "true";
 
 /**
