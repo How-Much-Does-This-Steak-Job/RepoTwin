@@ -352,15 +352,18 @@ function normalizeRepositoryList(data: RepositoryList | BackendRepository[]): Re
 export async function createRepository(
   data: RepositoryCreateRequest
 ): Promise<Repository> {
-  const repository = await fetchWithErrorHandling<BackendRepository>(`${API_BASE_URL}/repos`, {
-    method: "POST",
-    body: JSON.stringify({
-      name: data.name,
-      description: data.description,
-      url: data.github_url,
-      branch: data.default_branch ?? "main",
-    }),
-  });
+  const repository = await fetchWithErrorHandling<BackendRepository>(
+    `${API_BASE_URL}/repos?skip_clone=true`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name: data.name,
+        description: data.description,
+        url: data.github_url,
+        branch: data.default_branch ?? "main",
+      }),
+    }
+  );
 
   return normalizeRepository(repository);
 }
