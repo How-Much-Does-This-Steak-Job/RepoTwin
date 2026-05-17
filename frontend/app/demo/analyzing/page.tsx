@@ -26,6 +26,15 @@ function AnalyzingContent() {
 
     const pollProgress = async () => {
       try {
+        // For demo IDs, skip progress polling and go directly to results
+        if (analysisId.startsWith("demo-")) {
+          // Simulate brief loading for UX
+          setTimeout(() => {
+            router.push(`/demo/results?analysisId=${analysisId}`);
+          }, 2000);
+          return;
+        }
+
         const progressData = await getAnalysisProgress(analysisId);
         setProgress(progressData);
 
@@ -53,8 +62,10 @@ function AnalyzingContent() {
     // Initial poll
     pollProgress();
 
-    // Poll every 1 second
-    pollInterval = setInterval(pollProgress, 1000);
+    // Only set up polling interval for non-demo IDs
+    if (!analysisId.startsWith("demo-")) {
+      pollInterval = setInterval(pollProgress, 1000);
+    }
 
     return () => {
       if (pollInterval) {

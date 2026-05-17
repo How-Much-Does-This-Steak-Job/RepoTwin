@@ -1,36 +1,124 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RepoTwin Frontend
+
+Next.js 16 frontend for the RepoTwin Shadow PR analysis platform.
+
+## Tech Stack
+
+- **Framework**: Next.js 16 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS 4
+- **UI Components**: shadcn/ui
+- **Icons**: lucide-react
+- **Package Manager**: pnpm (required)
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- pnpm (install with `npm install -g pnpm`)
+
+### Installation
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Learn More
+### Build
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+pnpm build
+pnpm start
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Linting
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+pnpm lint
+```
 
-## Deploy on Vercel
+## Project Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+frontend/
+├── app/                    # Next.js App Router
+│   ├── page.tsx           # Landing page
+│   ├── layout.tsx         # Root layout
+│   ├── globals.css        # Global styles
+│   ├── demo/              # Demo flow
+│   │   ├── page.tsx       # Change request input
+│   │   ├── analyzing/     # Progress tracking
+│   │   └── results/       # Shadow PR dashboard
+│   └── repos/             # Repository management
+├── components/
+│   ├── ui/                # shadcn/ui components
+│   └── repo/              # Repository components
+├── lib/
+│   └── api.ts             # Typed API client
+├── types/
+│   └── api.ts             # TypeScript contracts
+├── data/
+│   └── sample-shadow-pr.json  # Demo data
+└── public/
+    └── data/              # Public assets
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Environment Variables
+
+Create `.env.local`:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+## Key Features
+
+- **Landing Page**: Product introduction and demo CTA
+- **Demo Input**: Natural language change request input
+- **Analysis Progress**: Real-time progress tracking with WebSocket
+- **Results Dashboard**: Comprehensive Shadow PR visualization
+  - Blast Radius Map
+  - Risk Assessment
+  - Affected Files
+  - Implementation Plan
+  - Test Recommendations
+  - PR Brief
+
+## API Integration
+
+The frontend communicates with the FastAPI backend via a typed API client (`lib/api.ts`).
+
+### Demo Mode
+Uses local sample data from `data/sample-shadow-pr.json` for offline demos.
+
+### Live Mode
+Connects to backend API for real-time analysis.
+
+## Development Notes
+
+- Always use `pnpm` (never npm or yarn)
+- Follow TypeScript strict mode
+- Use shadcn/ui components for consistency
+- Maintain responsive design
+- Keep IBM Bob attribution visible
+
+## Built with IBM Bob IDE
+
+This frontend was developed using IBM Bob IDE for:
+- Component generation
+- TypeScript type safety
+- API client implementation
+- UI/UX design decisions
+- Documentation
+
+---
+
+**Part of RepoTwin by Bob - IBM Bob Hackathon Project**

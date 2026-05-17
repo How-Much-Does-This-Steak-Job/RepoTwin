@@ -5,6 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, WebSocket, status
+from pydantic import BaseModel
 
 from app.schemas.analysis import (
     Analysis,
@@ -19,6 +20,102 @@ from app.utils.errors import AnalysisNotFoundError, AnalysisValidationError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+simple_router = APIRouter()  # Separate router for simple /analyze endpoint
+
+
+class SimpleAnalyzeRequest(BaseModel):
+    """Simplified analyze request for AGENTS.md compliance."""
+    repositoryName: str
+    changeRequest: str
+    mode: str = "demo"
+
+
+class SimpleAnalyzeResponse(BaseModel):
+    """Simplified analyze response."""
+    analysisId: str
+    status: str
+    message: str
+
+
+@simple_router.post("/analyze", response_model=SimpleAnalyzeResponse, status_code=status.HTTP_201_CREATED)
+async def simple_analyze(
+    request: SimpleAnalyzeRequest,
+    background_tasks: BackgroundTasks,
+):
+    """Simplified analyze endpoint for AGENTS.md compliance.
+    
+    This endpoint provides a simpler interface that matches the AGENTS.md specification:
+    POST /api/analyze with { repositoryName, changeRequest, mode }
+    
+    Args:
+        request: Simple analyze request
+        background_tasks: FastAPI background tasks
+        
+    Returns:
+        Simple response with analysisId and status
+    """
+    logger.info(f"Simple analyze request for repo {request.repositoryName}: {request.changeRequest}")
+    
+    try:
+        # For demo mode, return a demo analysis ID immediately
+        if request.mode == "demo":
+            # Use a deterministic ID for demo mode
+            demo_id = "demo-unimarket-reservations-001"
+            
+            return SimpleAnalyzeResponse(
+                analysisId=demo_id,
+                status="completed",
+                message=f"Demo analysis ready for {request.repositoryName}"
+            )
+        
+        # For live mode, create a real analysis job
+        # Note: This requires a repo_id, which we don't have in the simple request
+        # For now, we'll return a placeholder response
+        logger.warning("Live mode not fully implemented in simple analyze endpoint")
+        
+        return SimpleAnalyzeResponse(
+            analysisId="live-analysis-placeholder",
+            status="processing",
+            message="Live analysis mode requires repository connection"
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to process simple analyze request: {e}")
+        raise AnalysisValidationError(f"Failed to analyze: {str(e)}")
+
+@simple_router.get("/demo/{demo_id}/results", response_model=AnalysisResults)
+async def get_demo_results(demo_id: str):
+    """Get demo analysis results by demo ID.
+    
+    This endpoint handles demo IDs like 'demo-unimarket-reservations-001'
+    returned by the simple /api/analyze endpoint in demo mode.
+    
+    Args:
+        demo_id: Demo analysis ID (string, not UUID)
+        
+    Returns:
+        Demo Shadow PR results from sample data
+    """
+    logger.info(f"Getting demo results for {demo_id}")
+    
+    try:
+        from app.services.demo_service import demo_service
+        
+        # Load and return demo results
+        results = await demo_service.get_demo_result()
+        return results
+        
+    except Exception as e:
+        logger.error(f"Failed to get demo results for {demo_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": {
+                    "code": "DEMO_RESULTS_ERROR",
+                    "message": f"Failed to load demo results: {str(e)}",
+                }
+            }
+        )
 
 
 @router.post("", response_model=Analysis, status_code=status.HTTP_201_CREATED)
@@ -285,3 +382,5 @@ async def analysis_websocket(websocket: WebSocket, analysis_id: UUID):
     except Exception as e:
         logger.error(f"WebSocket error for analysis {analysis_id}: {e}")
         await websocket.close()
+
+# Made with Bob
