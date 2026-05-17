@@ -45,7 +45,7 @@ async def create_analysis(
         background_tasks.add_task(
             analysis_service.run_analysis,
             analysis.id,
-            "demo",  # Always use demo mode for now
+            "live",
         )
         
         logger.info(f"Analysis {analysis.id} created and queued")

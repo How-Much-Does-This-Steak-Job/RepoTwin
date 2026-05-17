@@ -202,6 +202,8 @@ class AnalysisResults(BaseModel):
     regression_analysis: RegressionAnalysis
     implementation_plan: ImplementationPlan
     test_recommendations: TestRecommendations
+    provider: str = "heuristic"  # "watsonx" | "heuristic" | "sample"
+    enhanced_by_llm: bool = False
 
 
 class AnalysisList(BaseModel):

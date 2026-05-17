@@ -1,8 +1,55 @@
 /**
  * API Types for RepoTwin Frontend-Backend Integration
- * Based on backend/app/schemas/analysis.py
+ * Based on backend/app/schemas/analysis.py and backend/app/schemas/repository.py
  */
 
+// Repository Types
+export interface Repository {
+  id: string;
+  name: string;
+  description: string | null;
+  github_url: string;
+  default_branch: string;
+  is_synced: boolean;
+  last_synced_at: string | null;
+  file_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RepositoryCreateRequest {
+  name: string;
+  description?: string;
+  github_url: string;
+  default_branch?: string;
+}
+
+export interface RepositoryFile {
+  path: string;
+  type: "file" | "directory";
+  size?: number;
+  language?: string;
+}
+
+export interface RepositoryFilesList {
+  repo_id: string;
+  files: RepositoryFile[];
+  total_count: number;
+}
+
+export interface RepositorySyncResponse {
+  repo_id: string;
+  status: string;
+  message: string;
+  files_indexed: number;
+}
+
+export interface RepositoryList {
+  items: Repository[];
+  total: number;
+}
+
+// Analysis Types
 export enum AnalysisStatus {
   PENDING = "pending",
   RUNNING = "running",
@@ -174,6 +221,8 @@ export interface AnalysisResults {
   regression_analysis: RegressionAnalysis;
   implementation_plan: ImplementationPlan;
   test_recommendations: TestRecommendations;
+  provider: "watsonx" | "heuristic" | "sample";
+  enhanced_by_llm: boolean;
 }
 
 export interface AnalysisList {
