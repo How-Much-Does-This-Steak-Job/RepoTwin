@@ -1,0 +1,478 @@
+{
+  "summary": {
+    "title": "Impact Analysis: Add Reservation Flow Before Purchase",
+    "overview": "This change introduces a reservation system before purchase in UniMarket, affecting 12 files across 5 modules with medium-high risk level. The implementation requires careful state management and introduces breaking changes to the purchase API.",
+    "key_points": [
+      "12 files require modifications across backend, Android UI, and analytics",
+      "Primary impact on transaction lifecycle and listing state model",
+      "Breaking change: Purchase endpoint now requires reservation_id",
+      "Database migration required for new reservation tables",
+      "Test coverage must increase to 85% for reservation logic",
+      "Offline cache strategy needs updates for reservation state",
+      "Seller notification system requires new reservation events"
+    ]
+  },
+  "affected_files": [
+    {
+      "path": "src/models/listing.py",
+      "impact_level": "direct",
+      "change_type": "modification",
+      "reasoning": "Listing state model needs reservation status field and reservation count tracking",
+      "lines_added": 45,
+      "lines_removed": 12,
+      "complexity_change": "increased",
+      "risk_factors": [
+        "State machine complexity increases from 4 to 7 states",
+        "Backward compatibility with existing listings",
+        "Database migration complexity"
+      ]
+    },
+    {
+      "path": "src/models/transaction.py",
+      "impact_level": "direct",
+      "change_type": "modification",
+      "reasoning": "Transaction model needs reservation reference and new status transitions",
+      "lines_added": 38,
+      "lines_removed": 8,
+      "complexity_change": "increased",
+      "risk_factors": [
+        "Circular dependency risk with Reservation model",
+        "Payment flow state management"
+      ]
+    },
+    {
+      "path": "src/models/reservation.py",
+      "impact_level": "direct",
+      "change_type": "addition",
+      "reasoning": "New Reservation model with expiration logic and state transitions",
+      "lines_added": 127,
+      "lines_removed": 0,
+      "complexity_change": "new",
+      "risk_factors": [
+        "Race conditions on reservation creation",
+        "Expiration cron job required",
+        "Inventory locking strategy"
+      ]
+    },
+    {
+      "path": "src/api/purchase.py",
+      "impact_level": "direct",
+      "change_type": "modification",
+      "reasoning": "Purchase endpoint must validate reservation before processing payment",
+      "lines_added": 67,
+      "lines_removed": 23,
+      "complexity_change": "increased",
+      "risk_factors": [
+        "API signature breaking change",
+        "Payment flow interruption risk",
+        "Double-spend prevention"
+      ]
+    },
+    {
+      "path": "src/api/reservations.py",
+      "impact_level": "direct",
+      "change_type": "addition",
+      "reasoning": "New REST endpoints for create, cancel, and extend reservation",
+      "lines_added": 189,
+      "lines_removed": 0,
+      "complexity_change": "new",
+      "risk_factors": [
+        "Rate limiting requirements",
+        "Concurrent reservation handling",
+        "Authorization checks"
+      ]
+    },
+    {
+      "path": "src/services/reservation_service.py",
+      "impact_level": "direct",
+      "change_type": "addition",
+      "reasoning": "Core business logic for reservation lifecycle management",
+      "lines_added": 245,
+      "lines_removed": 0,
+      "complexity_change": "new",
+      "risk_factors": [
+        "High complexity business rules",
+        "Transaction boundary management",
+        "Cache invalidation strategy"
+      ]
+    },
+    {
+      "path": "src/services/inventory_service.py",
+      "impact_level": "indirect",
+      "change_type": "modification",
+      "reasoning": "Inventory locking mechanism must support soft reservations",
+      "lines_added": 56,
+      "lines_removed": 18,
+      "complexity_change": "increased",
+      "risk_factors": [
+        "Deadlock risk with existing locking",
+        "Performance impact on high-traffic listings"
+      ]
+    },
+    {
+      "path": "android/app/src/main/java/com/unimarket/ui/purchase/PurchaseActivity.kt",
+      "impact_level": "direct",
+      "change_type": "modification",
+      "reasoning": "Android purchase flow UI needs reservation step before checkout",
+      "lines_added": 134,
+      "lines_removed": 45,
+      "complexity_change": "increased",
+      "risk_factors": [
+        "User experience disruption",
+        "State management complexity",
+        "Backward compatibility with older app versions"
+      ]
+    },
+    {
+      "path": "android/app/src/main/java/com/unimarket/ui/reservation/ReservationActivity.kt",
+      "impact_level": "direct",
+      "change_type": "addition",
+      "reasoning": "New Android activity for reservation management with countdown timer",
+      "lines_added": 298,
+      "lines_removed": 0,
+      "complexity_change": "new",
+      "risk_factors": [
+        "Memory leak risk with countdown timer",
+        "Network state handling",
+        "Background/foreground state management"
+      ]
+    },
+    {
+      "path": "src/analytics/events.py",
+      "impact_level": "indirect",
+      "change_type": "modification",
+      "reasoning": "Analytics tracking for reservation creation, expiration, and conversion",
+      "lines_added": 42,
+      "lines_removed": 3,
+      "complexity_change": "increased",
+      "risk_factors": [
+        "Event schema versioning",
+        "Analytics pipeline updates needed"
+      ]
+    },
+    {
+      "path": "src/cache/redis_cache.py",
+      "impact_level": "indirect",
+      "change_type": "modification",
+      "reasoning": "Cache invalidation strategy must handle reservation state changes",
+      "lines_added": 34,
+      "lines_removed": 8,
+      "complexity_change": "neutral",
+      "risk_factors": [
+        "Cache consistency issues",
+        "Stale data risk"
+      ]
+    },
+    {
+      "path": "tests/integration/test_purchase_flow.py",
+      "impact_level": "indirect",
+      "change_type": "modification",
+      "reasoning": "Integration tests must cover complete reservation to purchase flow",
+      "lines_added": 189,
+      "lines_removed": 67,
+      "complexity_change": "increased",
+      "risk_factors": [
+        "Test execution time increase",
+        "Flaky test risk with timing-dependent reservation expiration"
+      ]
+    }
+  ],
+  "impact_radius": {
+    "category": "medium-high",
+    "metrics": {
+      "files_affected": 12,
+      "files_direct": 6,
+      "files_indirect": 6,
+      "functions_affected": 34,
+      "classes_affected": 8,
+      "tests_affected": 15,
+      "percentage_of_codebase": 4.2
+    }
+  },
+  "risk_assessment": {
+    "overall_level": "medium",
+    "score": 72,
+    "factors": [
+      {
+        "name": "State Machine Complexity",
+        "level": "high",
+        "likelihood": "high",
+        "impact": "high",
+        "description": "Adding reservation state increases state machine from 4 to 7 states, introducing complex transitions",
+        "mitigation": "Implement comprehensive state transition tests and state machine validation"
+      },
+      {
+        "name": "API Breaking Changes",
+        "level": "high",
+        "likelihood": "certain",
+        "impact": "high",
+        "description": "Purchase endpoint signature change affects all existing API consumers",
+        "mitigation": "Version API (v2), provide migration guide, maintain v1 with deprecation warnings"
+      },
+      {
+        "name": "Race Conditions",
+        "level": "high",
+        "likelihood": "medium",
+        "impact": "high",
+        "description": "Concurrent reservations on same listing can lead to overselling",
+        "mitigation": "Implement distributed locking with Redis, add database constraints"
+      },
+      {
+        "name": "Performance Degradation",
+        "level": "medium",
+        "likelihood": "medium",
+        "impact": "medium",
+        "description": "Additional database queries and cache operations may slow purchase flow",
+        "mitigation": "Add performance benchmarks, implement query optimization, use read replicas"
+      },
+      {
+        "name": "Data Migration Complexity",
+        "level": "medium",
+        "likelihood": "certain",
+        "impact": "medium",
+        "description": "New reservation table requires migration of historical transaction data",
+        "mitigation": "Create reversible migration, test with production data clone, run in maintenance window"
+      },
+      {
+        "name": "Mobile App Compatibility",
+        "level": "medium",
+        "likelihood": "high",
+        "impact": "medium",
+        "description": "Older app versions will break without reservation support",
+        "mitigation": "Force update mechanism, graceful degradation for v1 API consumers"
+      }
+    ]
+  },
+  "regression_analysis": {
+    "breaking_changes": [
+      {
+        "type": "api_signature",
+        "file": "src/api/purchase.py",
+        "line": 42,
+        "description": "POST /api/v1/purchase now requires reservation_id parameter in request body",
+        "migration": "Update all purchase API calls to first create reservation and include reservation_id",
+        "severity": "high"
+      },
+      {
+        "type": "database_schema",
+        "file": "src/models/transaction.py",
+        "line": 67,
+        "description": "Transaction table adds non-nullable reservation_id foreign key",
+        "migration": "Run database migration to add column and backfill existing transactions with null reservation_ids",
+        "severity": "high"
+      },
+      {
+        "type": "response_format",
+        "file": "src/api/purchase.py",
+        "line": 89,
+        "description": "Purchase response now includes reservation object nested in response",
+        "migration": "Update client-side response parsers to handle new nested structure",
+        "severity": "medium"
+      }
+    ],
+    "behavior_changes": [
+      {
+        "type": "business_logic",
+        "file": "src/services/purchase_service.py",
+        "description": "Purchase flow now validates reservation is active and not expired before processing payment",
+        "impact": "Direct purchases without reservation will fail with 400 error"
+      },
+      {
+        "type": "timing",
+        "file": "src/services/reservation_service.py",
+        "description": "Purchase endpoint latency increases by ~50ms due to reservation validation",
+        "impact": "p99 latency may exceed 200ms threshold, monitoring alert may trigger"
+      },
+      {
+        "type": "inventory_management",
+        "file": "src/services/inventory_service.py",
+        "description": "Items in reservation state are excluded from search results and unavailable for other buyers",
+        "impact": "Effective inventory appears reduced during high reservation periods"
+      },
+      {
+        "type": "notification_triggers",
+        "file": "src/services/notification_service.py",
+        "description": "New notifications sent to sellers when reservations are created, expired, or converted",
+        "impact": "Increased notification volume, potential for notification fatigue"
+      }
+    ]
+  },
+  "implementation_plan": {
+    "phases": [
+      {
+        "phase": 1,
+        "name": "Database Schema & Models",
+        "description": "Create reservation table, update listing and transaction models",
+        "files": [
+          "src/models/reservation.py",
+          "src/models/listing.py",
+          "src/models/transaction.py",
+          "migrations/versions/001_add_reservation_table.py"
+        ],
+        "estimated_effort": "4 hours",
+        "checkpoints": [
+          "Database migration created and tested",
+          "Model unit tests passing",
+          "Foreign key constraints validated"
+        ]
+      },
+      {
+        "phase": 2,
+        "name": "Core Reservation Service",
+        "description": "Implement reservation business logic with expiration handling",
+        "files": [
+          "src/services/reservation_service.py",
+          "src/services/inventory_service.py"
+        ],
+        "estimated_effort": "6 hours",
+        "checkpoints": [
+          "Reservation CRUD operations working",
+          "Expiration cron job implemented",
+          "Race condition handling tested"
+        ]
+      },
+      {
+        "phase": 3,
+        "name": "API Layer",
+        "description": "Create REST endpoints for reservation management",
+        "files": [
+          "src/api/reservations.py",
+          "src/api/purchase.py"
+        ],
+        "estimated_effort": "4 hours",
+        "checkpoints": [
+          "All endpoints return correct status codes",
+          "API documentation updated",
+          "Rate limiting configured"
+        ]
+      },
+      {
+        "phase": 4,
+        "name": "Android UI",
+        "description": "Implement reservation flow in Android app",
+        "files": [
+          "android/app/src/main/java/com/unimarket/ui/reservation/",
+          "android/app/src/main/java/com/unimarket/ui/purchase/PurchaseActivity.kt"
+        ],
+        "estimated_effort": "8 hours",
+        "checkpoints": [
+          "Reservation UI screens complete",
+          "Countdown timer working",
+          "Error handling implemented"
+        ]
+      },
+      {
+        "phase": 5,
+        "name": "Integration & Testing",
+        "description": "End-to-end testing and integration verification",
+        "files": [
+          "tests/integration/test_reservation_flow.py",
+          "tests/integration/test_purchase_with_reservation.py"
+        ],
+        "estimated_effort": "6 hours",
+        "checkpoints": [
+          "Integration tests passing",
+          "Load test with 100 concurrent reservations",
+          "Rollback procedure tested"
+        ]
+      }
+    ],
+    "total_estimated_effort": "28 hours",
+    "rollback_strategy": "1. Disable feature flag for reservation flow, 2. Database rollback migration, 3. Revert API changes with backwards compatibility",
+    "prerequisites": [
+      "Database backup completed",
+      "Redis cluster has available capacity for locking keys",
+      "Staging environment tested with production data",
+      "Mobile app force update mechanism ready",
+      "Customer support documentation updated"
+    ]
+  },
+  "test_recommendations": {
+    "existing_tests_to_update": [
+      {
+        "path": "tests/integration/test_purchase_flow.py",
+        "changes": "Add reservation creation step before all purchase test cases",
+        "priority": "high"
+      },
+      {
+        "path": "tests/unit/test_listing_model.py",
+        "changes": "Update state machine tests to include reservation states",
+        "priority": "high"
+      },
+      {
+        "path": "tests/api/test_purchase_api.py",
+        "changes": "Update API tests to include reservation_id in request payload",
+        "priority": "high"
+      },
+      {
+        "path": "tests/performance/test_purchase_latency.py",
+        "changes": "Adjust latency thresholds to account for reservation validation",
+        "priority": "medium"
+      }
+    ],
+    "new_tests_needed": [
+      {
+        "type": "unit",
+        "description": "Reservation model state transition tests",
+        "priority": "high"
+      },
+      {
+        "type": "unit",
+        "description": "Reservation expiration logic tests",
+        "priority": "high"
+      },
+      {
+        "type": "integration",
+        "description": "Complete reservation to purchase flow end-to-end",
+        "priority": "high"
+      },
+      {
+        "type": "integration",
+        "description": "Concurrent reservation creation race condition tests",
+        "priority": "high"
+      },
+      {
+        "type": "load",
+        "description": "100 concurrent reservations on same listing",
+        "priority": "medium"
+      },
+      {
+        "type": "integration",
+        "description": "Reservation expiration and inventory release",
+        "priority": "medium"
+      },
+      {
+        "type": "unit",
+        "description": "Cron job for reservation cleanup",
+        "priority": "medium"
+      },
+      {
+        "type": "e2e",
+        "description": "Mobile app reservation flow UI tests",
+        "priority": "medium"
+      }
+    ],
+    "coverage_gaps": [
+      {
+        "area": "Reservation state transitions",
+        "current_coverage": 0,
+        "target_coverage": 95
+      },
+      {
+        "area": "Expiration edge cases",
+        "current_coverage": 0,
+        "target_coverage": 90
+      },
+      {
+        "area": "Race condition handling",
+        "current_coverage": 0,
+        "target_coverage": 85
+      },
+      {
+        "area": "Purchase flow with reservation",
+        "current_coverage": 45,
+        "target_coverage": 90
+      }
+    ]
+  }
+}

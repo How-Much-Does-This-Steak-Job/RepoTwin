@@ -3,12 +3,12 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createAnalysis, getSelectedRepoId, getRepository } from "@/lib/api";
+import { simpleAnalyze, getSelectedRepoId, getRepository } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Zap } from "lucide-react";
 import { Repository } from "@/types/api";
 
 export default function DemoPage() {
@@ -49,11 +49,6 @@ export default function DemoPage() {
     e.preventDefault();
     setError(null);
 
-    if (!selectedRepo) {
-      setError("Please select a repository first");
-      return;
-    }
-
     if (changeRequest.trim().length < 10) {
       setError("Change request must be at least 10 characters long");
       return;
@@ -62,15 +57,16 @@ export default function DemoPage() {
     setIsSubmitting(true);
 
     try {
-      // Create analysis with selected repo
-      const analysis = await createAnalysis({
-        repo_id: selectedRepo.id,
-        change_description: changeRequest.trim(),
-        target_branch: selectedRepo.default_branch,
+      // Use simple analyze endpoint (AGENTS.md compliant)
+      const repositoryName = selectedRepo?.name || "UniMarket";
+      const response = await simpleAnalyze({
+        repositoryName,
+        changeRequest: changeRequest.trim(),
+        mode: "demo", // Always use demo mode for now
       });
 
-      // Redirect to analyzing page
-      router.push(`/demo/analyzing?analysisId=${analysis.id}`);
+      // Redirect to analyzing page with demo ID
+      router.push(`/demo/analyzing?analysisId=${response.analysisId}`);
     } catch (err) {
       console.error("Failed to create analysis:", err);
       setError(

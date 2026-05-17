@@ -1,6 +1,7 @@
 /**
  * API Client for RepoTwin Backend Integration
  * Handles all HTTP requests with fallback to local sample data
+ * Updated for AGENTS.md-compliant endpoints
  */
 
 import {
@@ -19,6 +20,24 @@ import {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 const USE_MOCK_DATA = process.env.NEXT_PUBLIC_USE_MOCK === "true";
+
+/**
+ * Simple analyze request for AGENTS.md compliance
+ */
+export interface SimpleAnalyzeRequest {
+  repositoryName: string;
+  changeRequest: string;
+  mode: "demo" | "live";
+}
+
+/**
+ * Simple analyze response for AGENTS.md compliance
+ */
+export interface SimpleAnalyzeResponse {
+  analysisId: string;
+  status: string;
+  message: string;
+}
 
 /**
  * Fetch wrapper with error handling
@@ -79,6 +98,59 @@ export async function checkHealth(): Promise<HealthResponse> {
   } catch (error) {
     console.warn("Backend health check failed, using mock mode");
     return { status: "ok", service: "repotwin-mock" };
+  }
+}
+
+/**
+ * Simple analyze endpoint (AGENTS.md compliant)
+ * POST /api/analyze
+ */
+export async function simpleAnalyze(
+  request: SimpleAnalyzeRequest
+): Promise<SimpleAnalyzeResponse> {
+  if (USE_MOCK_DATA) {
+    // Return mock response for demo mode
+    return {
+      analysisId: "demo-unimarket-reservations-001",
+      status: "completed",
+      message: `Demo analysis ready for ${request.repositoryName}`,
+    };
+  }
+
+  try {
+    return await fetchWithErrorHandling<SimpleAnalyzeResponse>(
+      `${API_BASE_URL}/analyze`,
+      {
+        method: "POST",
+        body: JSON.stringify(request),
+      }
+    );
+  } catch (error) {
+    console.warn("Backend analyze failed, using mock mode");
+    return {
+      analysisId: "demo-unimarket-reservations-001",
+      status: "completed",
+      message: `Demo analysis ready for ${request.repositoryName}`,
+    };
+  }
+}
+
+/**
+ * Get demo results by demo ID
+ * GET /api/demo/{demo_id}/results
+ */
+export async function getDemoResults(demoId: string): Promise<AnalysisResults> {
+  if (USE_MOCK_DATA) {
+    return await loadSampleData();
+  }
+
+  try {
+    return await fetchWithErrorHandling<AnalysisResults>(
+      `${API_BASE_URL}/demo/${demoId}/results`
+    );
+  } catch (error) {
+    console.warn("Backend demo results failed, using local sample data");
+    return await loadSampleData();
   }
 }
 
@@ -166,6 +238,7 @@ export async function getAnalysisProgress(
 
 /**
  * Get analysis results (Shadow PR)
+ * Supports both UUID-based analysis IDs and demo IDs
  */
 export async function getAnalysisResults(
   analysisId: string
@@ -175,6 +248,12 @@ export async function getAnalysisResults(
     return await loadSampleData();
   }
 
+  // Check if this is a demo ID (starts with "demo-")
+  if (analysisId.startsWith("demo-")) {
+    return await getDemoResults(analysisId);
+  }
+
+  // Otherwise, use the UUID-based endpoint
   return await fetchWithErrorHandling<AnalysisResults>(
     `${API_BASE_URL}/analysis/${analysisId}/results`
   );

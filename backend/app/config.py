@@ -24,6 +24,16 @@ class Settings(BaseSettings):
     debug: bool = False
     environment: str = "development"
     
+    @field_validator('debug', mode='before')
+    @classmethod
+    def parse_debug(cls, v):
+        """Parse debug value from string or bool."""
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, str):
+            return v.lower() in ('true', '1', 'yes', 'on')
+        return False
+    
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
